@@ -25,7 +25,7 @@ STOP_COND_MAX_GENERATION_STR = 'Выполнять до макс. поколен
 STOP_COND_PAINT_FOUND_STR    = 'Вернуть найденную раскраску сразу'
 
 ALGRORITHM_GA_STR    = 'Генетический алгоритм'
-ALGORITHM_IMMUNE_STR = 'Имунный алгоритм'
+ALGORITHM_IMMUNE_STR = 'Иммунный алгоритм'
 
 # problem constants:
 HARD_CONSTRAINT_PENALTY = 10  # the penalty factor for a hard-constraint violation
@@ -97,13 +97,28 @@ class FindPainting(QObject):
 
     isStopped = False
 
+    memory_antibodies = {}
+
     def __init__(self):
         super().__init__()
 
     def immuneAlgorithm(self, population_size, max_generations, max_colors, p_stay_percent, updated_percent, graph, stop_cond):
         gcp = graphs.GraphColoringProblem(graph=graph, hardConstraintPenalty=HARD_CONSTRAINT_PENALTY)
         count_genes = len(gcp)
-        population = createPopulation(population_size, count_genes, max_colors)
+
+        population = []
+        if count_genes in self.memory_antibodies:
+            mem_antibody = self.memory_antibodies[count_genes][0]
+            self.memory_antibodies[count_genes][1] = gcp.getCost(mem_antibody)
+            if stop_cond == StopCondition.StopIfPaintFound and gcp.getViolationsCount(mem_antibody) == 0:
+                return mem_antibody
+            population.append(mem_antibody.copy())
+        else:
+            first_antibody = createIndividual(count_genes, max_colors)
+            self.memory_antibodies[count_genes] = [first_antibody, gcp.getCost(first_antibody)]
+            population.append(first_antibody)
+
+        population += createPopulation(population_size - 1, count_genes, max_colors)
         count_stay_p = int(p_stay_percent * population_size)
         count_updated = int(updated_percent * population_size)
         count_deleted_p = population_size - count_stay_p
@@ -111,7 +126,6 @@ class FindPainting(QObject):
         average_clones_for_one = population_size / count_stay_p
         p = 1.0 / count_genes
         population_indxs = [i for i in range(population_size)]
-        list_indxs = [i for i in range(count_genes)]
 
         utilities = [(i, gcp.getCost(population[i])) for i in range(population_size)]
         utilities = sorted(utilities, key=lambda el: el[1])[:count_stay_p]
@@ -119,7 +133,7 @@ class FindPainting(QObject):
         for generation in range(max_generations):
             if self.isStopped:
                 break
-            print("Generation", generation)
+            print("Generation ", generation + 1)
             sum_utilities = 0
             for el in utilities:
                 sum_utilities += el[1]
@@ -146,30 +160,31 @@ class FindPainting(QObject):
                 new_population += [population[i] for _ in range(count_clones)]
                 i += 1
                 pass
-           # print('new_population size =', len(new_population))
+            print('new_population size =', len(new_population))
 
             # Мутация
             i = 0
             for count_antibodies, utility in utilities_2:
                 mut = math.exp(p * utility)
+                print("mut =", mut, "; utility =", utility)
                 for k in range(count_antibodies):
-                    count_changed_genes = math.ceil(mut)
-                    if count_changed_genes > count_genes:
-                        count_changed_genes = count_genes
-                    random.shuffle(list_indxs)
-                    for t in range(count_changed_genes):
-                        population[i][list_indxs[t]] = random.randint(0, max_colors - 1)
-                        pass
+                    if 10 > random.randint(0, 100):
+                        mut_indx = random.randint(0, count_genes - 1)
+                        population[k][mut_indx] = random.randint(0, max_colors - 1)
                     i += 1
                     pass
                 pass
             population = new_population
 
             utilities = [(i, gcp.getCost(population[i])) for i in range(population_size)]
-            utilities = sorted(utilities, key=lambda el: el[1])[:count_stay_p]
+            utilities = sorted(utilities, key=lambda el: el[1])#[:count_stay_p]
 
+            best = population[utilities[0][0]]
+            if utilities[0][1] < self.memory_antibodies[count_genes][1]:
+                self.memory_antibodies[count_genes] = [best.copy(), utilities[0][1] ]
+                print('new best!')
             if stop_cond == StopCondition.StopIfPaintFound:
-                best = population[utilities[0][0]]
+                print('best utility =', utilities[0][1])
                 if gcp.getViolationsCount(best) == 0:
                     return best
 
@@ -177,6 +192,10 @@ class FindPainting(QObject):
                 updated_indxs = random.sample(population_indxs, count_updated)
                 for indx in updated_indxs:
                     population[indx] = createIndividual(count_genes, max_colors)
+                    utilities[indx] = (indx, gcp.getCost(population[indx]))
+
+            utilities = sorted(utilities, key=lambda el: el[1])
+            utilities = utilities[:count_stay_p]
 
         best = population[utilities[0][0]]
         if gcp.getViolationsCount(best) == 0:
@@ -580,7 +599,7 @@ QTabBar::tab:selected {
                 return
             self.sendParamsForImmune.emit(population_size, max_generations,
                                      max_colors, best_part_antibodies, updated_part, self.graph, algorithm_stop_cond)
-            algorithm_name = 'имунным алгоритмом'
+            algorithm_name = 'иммунным алгоритмом'
 
         self.result_label.setText("<font color='#0c7af7'>Идет поиск раскраски {}..</font>".format(algorithm_name))
         self.setCalculateState(True)

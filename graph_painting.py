@@ -173,27 +173,24 @@ def immuneAlgorithm(population_size, max_generations, max_colors, p_stay_percent
             new_population += [population[i] for _ in range(count_clones)]
             i += 1
             pass
-        print('new_population size =', len(new_population))
+      #  print('new_population size =', len(new_population))
 
         # Мутация
         i = 0
         for count_antibodies, utility in utilities_2:
             mut = math.exp(p * utility)
+            print("mut =", mut, "; utility =", utility)
             for k in range(count_antibodies):
-                count_changed_genes = math.ceil(mut)
-                if count_changed_genes > count_genes:
-                    count_changed_genes = count_genes
-                random.shuffle(list_indxs)
-                for t in range(count_changed_genes):
-                    population[i][list_indxs[t]] = random.randint(0, max_colors - 1)
-                    pass
+                if mut > random.randint(0, 100):
+                    mut_indx = random.randint(0, count_genes - 1)
+                    population[k][mut_indx] = random.randint(0, max_colors - 1)
                 i += 1
                 pass
             pass
         population = new_population
 
         utilities = [(i, gcp.getCost(population[i])) for i in range(population_size)]
-        utilities = sorted(utilities, key=lambda el: el[1])[:count_stay_p]
+        utilities = sorted(utilities, key=lambda el: el[1])#[:count_stay_p]
 
         best = population[utilities[0][0]]
         if gcp.getViolationsCount(best) == 0:
@@ -203,13 +200,17 @@ def immuneAlgorithm(population_size, max_generations, max_colors, p_stay_percent
             updated_indxs = random.sample(population_indxs, count_updated)
             for indx in updated_indxs:
                 population[indx] = createIndividual(count_genes, max_colors)
+                utilities[indx] = (indx, gcp.getCost(population[indx]))
+              #  print('new antibody utility =', gcp.getCost(population[indx]))
 
+        utilities = sorted(utilities, key=lambda el: el[1])
+        utilities = utilities[:count_stay_p]
 
     return None
 
 
-#best = immuneAlgorithm(POPULATION_SIZE, MAX_GENERATIONS, MAX_COLORS, 0.1, 0.1, g)
-#
+# best = immuneAlgorithm(POPULATION_SIZE, MAX_GENERATIONS, MAX_COLORS, 0.3, 0.1, g)
+# #
 # if best is not None:
 #     gcp = graphs.GraphColoringProblem(graph=g, hardConstraintPenalty=HARD_CONSTRAINT_PENALTY)
 #     plot = gcp.plotGraph(best)
